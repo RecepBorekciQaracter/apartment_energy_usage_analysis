@@ -17,7 +17,7 @@ SEPARATOR_LINE = "=" * 40
 columns = [
             "Hour_00","Hour_01","Hour_02", "Hour_03","Hour_04","Hour_05","Hour_06","Hour_07",
             "Hour_08","Hour_09","Hour_10","Hour_11","Hour_12","Hour_13","Hour_14","Hour_15",
-            "Hour_16","Hour_17","Hour_18","Hour_19","Hour_20","Hour_21","Hour_21","Hour_23"
+            "Hour_16","Hour_17","Hour_18","Hour_19","Hour_20","Hour_21","Hour_22","Hour_23"
         ]
 
 rows = [
@@ -73,10 +73,66 @@ def compute_high_consumption_flags(apartment_avg, mean, std):
 
     return THRESHOLD, high_consumption_flags
 
+# C. Identify peak consumption periods
+# GOAL 2: Identify peak consumption periods across all apartments and determine whether these peaks are caused by many apartments consuming moderately more, or a few apartments consuming extremely high values.
+
+def compute_time_interval_averages(apartment_data):
+    time_interval_avg = np.average(apartment_data, axis=0) # Average by hours
+    return time_interval_avg
+
+def compute_time_interval_maxima(apartment_data):
+    time_interval_max = np.max(apartment_data, axis=0)
+    return time_interval_max
+
+def compute_peak_time_intervals(time_avg, k):
+    mean_of_time_avgs = np.mean(time_avg)
+    std_of_time_avgs = np.std(time_avg)
+
+    threshold = mean_of_time_avgs + k * std_of_time_avgs
+
+    peak_time_flags = time_avg > threshold
+
+    return threshold, peak_time_flags
+    
+def compute_peak_contribution_distribution(columns, apartment_data, peak_flags):
+    peak_analysis = []
+
+    for hour_index in range(len(columns)):
+        if not peak_flags[hour_index]:
+            continue  # Skip non-peak hours
+
+        # Extract all apartment usage for this hour
+        hour_data = apartment_data[:, hour_index]
+        hour_mean = np.mean(hour_data)
+        hour_std = np.std(hour_data)
+
+        # Define significant contributors
+        significant_mask = hour_data > (hour_mean + hour_std)
+
+        significant_count = np.sum(significant_mask)
+
+        total_energy = np.sum(hour_data)
+        significant_energy = np.sum(hour_data[significant_mask])
+
+        contribution_ratio = (
+            significant_energy / total_energy
+            if total_energy > 0 else 0
+        )
+
+        peak_analysis.append({
+            "hour_index": hour_index,
+            "total_energy": total_energy,
+            "significant_apartments": significant_count,
+            "contribution_ratio": contribution_ratio
+        })
+
+    return peak_analysis
+
 # ========================
 # 3. REPORTING / PRESENTATION SECTION
 # ========================
 
+# B. Apartment usage functions
 def print_separator():
     """Print a separator line for visual organization of output."""
     print(SEPARATOR_LINE)
@@ -109,11 +165,62 @@ def print_population_usage_statistics(population_mean, population_median, popula
     print(f"Median: {round(population_median, 4)}")
     print(f"Standard Deviation: {round(population_std, 4)}")
 
-def print_high_consumption_flags(rows, threshold, apartment_high_flags):
+def print_high_consumption_flags_by_apartment(rows, threshold, apartment_high_flags):
     print(f"Threshold is: {threshold}")
     print("APARTMENTS WITH HIGH ENERGY USAGE: ")
     for i in range(len(rows)):
         print(f"{rows[i]}: {apartment_high_flags[i]}")
+
+# C. Identify peak consumption periods
+
+def print_time_interval_averages(columns, time_interval_avg):
+    print("AVERAGE ENERGY USAGE BY TIME INTERVAL: ")
+    for i in range(len(columns)):
+        print(f"{columns[i]}: {round(time_interval_avg[i], 4)}")
+
+def print_time_interval_max_values(columns, time_interval_max):
+    print("MAXIMUM ENERGY USAGE BY TIME INTERVAL: ")
+    for i in range(len(columns)):
+        print(f"{columns[i]}: {round(time_interval_max[i], 4)}")
+
+def print_high_consumption_flags_by_time_averages(columns, time_avg_flags, threshold):
+    print(f"Threshold is: {threshold}")
+    print("TIME PERIODS WITH HIGH ENERGY USAGE: ")
+    for i in range(len(columns)):
+        print(f"{columns[i]}: {time_avg_flags[i]}")
+
+def print_peak_contribution_distribution(peak_analysis, columns=None):
+    print("PEAK CONSUMPTION CONTRIBUTION ANALYSIS: ")
+
+    if not peak_analysis:
+        print("No peak hours detected.")
+        return
+
+    for peak in peak_analysis:
+        hour_index = peak["hour_index"]
+        total_energy = peak["total_energy"]
+        significant_count = peak["significant_apartments"]
+        contribution_ratio = peak["contribution_ratio"]
+
+        hour_label = columns[hour_index] if columns else f"Hour_{hour_index:02d}"
+
+        print("-" * 40)
+        print(f"Peak Hour             : {hour_label}")
+        print(f"Total Energy (kWh)    : {round(total_energy, 4)}")
+        print(f"High-Usage Apartments : {significant_count}")
+        print(f"Contribution Ratio    : {round(contribution_ratio * 100, 2)}%")
+
+        # Interpretation
+        if significant_count <= 2 and contribution_ratio > 0.5:
+            interpretation = "Peak driven by a few extreme consumers."
+        elif significant_count > 2 and contribution_ratio > 0.5:
+            interpretation = "Peak driven by several high-usage apartments."
+        else:
+            interpretation = "Peak caused by moderate increases across apartments."
+
+        print(f"Interpretation        : {interpretation}")
+
+    print("-" * 40)
 
 # ========================
 # 4. MAIN FUNCTION
@@ -124,7 +231,12 @@ def main():
     apartment_avg = compute_apartment_energy_averages(apartment_data)
     apartment_total = compute_apartment_energy_total(apartment_data)
     population_mean, population_median, population_std = compute_population_usage_statistics(apartment_avg)
-    threshold, high_consumption_flags = compute_high_consumption_flags(apartment_avg, population_mean, population_std)
+    apartment_threshold, high_consumption_flags = compute_high_consumption_flags(apartment_avg, population_mean, population_std)
+
+    time_interval_avg = compute_time_interval_averages(apartment_data)
+    time_interval_max = compute_time_interval_maxima(apartment_data)
+    time_threshold, peak_time_intervals = compute_peak_time_intervals(time_interval_avg, 0.8)
+    peak_contribution_distribution = compute_peak_contribution_distribution(columns, apartment_data, peak_time_intervals)
 
     print_separator()
     print_apartment_data(rows, columns, apartment_data)
@@ -151,7 +263,31 @@ def main():
     print_newline()
 
     print_separator()
-    print_high_consumption_flags(rows, threshold, high_consumption_flags)
+    print_high_consumption_flags_by_apartment(rows, apartment_threshold, high_consumption_flags)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_time_interval_averages(columns, time_interval_avg)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_time_interval_max_values(columns, time_interval_max)
+    print_separator()
+
+    print_newline()
+        
+    print_separator()
+    print_high_consumption_flags_by_time_averages(columns, peak_time_intervals, threshold=time_threshold)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_peak_contribution_distribution(peak_contribution_distribution, columns)
     print_separator()
 
 main()
