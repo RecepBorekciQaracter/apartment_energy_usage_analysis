@@ -128,7 +128,7 @@ def compute_peak_contribution_distribution(columns, apartment_data, peak_flags):
 
     return peak_analysis
 
-# C. Compute consumption stability metrics 
+# D. Compute consumption stability metrics 
 # GOAL 3: Compare apartments in terms of consumption stability, identifying which ones show regular usage patterns and which ones are highly irregular.
 
 def compute_apartment_variance(apartment_data):
@@ -154,6 +154,30 @@ def compute_stability_scores(apartment_cv):
 
     return stability_scores
 
+# E. Create Normalized Profiles
+# Goal 4: Create a normalized consumption profile so apartments with different absolute usage levels can be compared fairly.
+def compute_min_max_normalized_profiles(apartment_data):
+    min_per_hour = np.min(apartment_data, axis=0)
+    max_per_hour = np.max(apartment_data, axis=0)
+
+    # Avoid division by zero
+    range_per_hour = max_per_hour - min_per_hour
+    if np.any(range_per_hour == 0):
+        raise ValueError("Cannot normalize: at least one hour has zero variance")
+
+    normalized = (apartment_data - min_per_hour) / range_per_hour
+    return normalized
+
+def compute_z_score_normalized_profiles(apartment_data):
+    mean_per_hour = np.mean(apartment_data, axis=0)
+    std_per_hour = np.std(apartment_data, axis=0)
+
+    if np.any(std_per_hour == 0):
+        raise ValueError("Cannot z-normalize: at least one hour has zero std")
+
+    z_scores = (apartment_data - mean_per_hour) / std_per_hour
+    return z_scores
+
 # ========================
 # 3. REPORTING / PRESENTATION SECTION
 # ========================
@@ -167,14 +191,16 @@ def print_newline():
     """Print a blank line for spacing in output."""
     print("\n")
 
+# A. Print apartment data
 def print_apartment_data(rows, columns, apartment_data):
     print("APARTMENT DATA: ")
     print(f"Rows: {rows}")
     print(f"Columns: {columns}")
     print(f"Data: \n")
     print(apartment_data)
-    print(apartment_data.shape)
+    print(f"Data shape: {apartment_data.shape}")
 
+# B. Print apartment usage information
 def print_apartment_total(rows, apartment_total):
     print("TOTAL ENERGY USAGE BY APARTMENT: ")
     for i in range(len(rows)):
@@ -197,8 +223,7 @@ def print_high_consumption_flags_by_apartment(rows, threshold, apartment_high_fl
     for i in range(len(rows)):
         print(f"{rows[i]}: {apartment_high_flags[i]}")
 
-# C. Identify peak consumption periods
-
+# C. Print peak consumption periods
 def print_time_interval_averages(columns, time_interval_avg):
     print("AVERAGE ENERGY USAGE BY TIME INTERVAL: ")
     for i in range(len(columns)):
@@ -248,7 +273,7 @@ def print_peak_contribution_distribution(peak_analysis, columns=None):
 
     print("-" * 40)
 
-# D. Compute consumption stability metrics 
+# D. Print consumption stability metrics 
 def print_apartment_variance(rows, apartment_var):
     print("VARIANCE BY APARTMENT: ")
     for i in range(len(rows)):
@@ -292,6 +317,18 @@ def print_most_stable_and_irregular_apartments(rows, stability_scores, top_n=3):
 
     print("-" * 40)
 
+# E. Print Normalized Profiles
+def print_normalization_explanation():
+    print("NORMALIZED CONSUMPTION PROFILES")
+    print("Each hour was normalized independently across apartments.")
+    print("This preserves hourly consumption patterns while removing")
+    print("absolute usage scale differences between apartments.")
+
+def print_normalized_profiles(rows, normalization_type, normalized_data, sample_count=5):
+    print(f"APARTMENT NORMALIZED PROFILES BY {normalization_type}: (first {sample_count} apartments)")
+    for i in range(sample_count):
+        print(f"{rows[i]}: {np.round(normalized_data[i], 4)}")
+
 # ========================
 # 4. MAIN FUNCTION
 # ========================
@@ -315,6 +352,12 @@ def main():
     except ValueError as e:
         print(e)
     apartment_stability_score = compute_stability_scores(apartment_cv)
+
+    try:
+        min_max_normalized_data = compute_min_max_normalized_profiles(apartment_data)
+        z_score_normalized_data = compute_z_score_normalized_profiles(apartment_data)
+    except ValueError as e:
+        print(e)
 
     print_separator()
     print_apartment_data(rows, columns, apartment_data)
@@ -396,6 +439,24 @@ def main():
 
     print_separator()
     print_most_stable_and_irregular_apartments(rows, apartment_stability_score, top_n = 4)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_normalization_explanation()
+    print_separator()
+    
+    print_newline()
+
+    print_separator()
+    print_normalized_profiles(rows, "MIN-MAX NORMALIZATION", min_max_normalized_data, sample_count=3)
+    print_separator()
+    
+    print_newline()
+
+    print_separator()
+    print_normalized_profiles(rows, "Z-SCORE NORMALIZATION", z_score_normalized_data, sample_count=3)
     print_separator()
     
 main()
