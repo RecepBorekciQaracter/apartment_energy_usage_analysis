@@ -325,6 +325,9 @@ def print_normalization_explanation():
     print("absolute usage scale differences between apartments.")
 
 def print_normalized_profiles(rows, normalization_type, normalized_data, sample_count=5):
+    if sample_count > len(rows):
+        raise ValueError(f"Sample count {sample_count} exceeds number of apartments {len(rows)}.")
+
     print(f"APARTMENT NORMALIZED PROFILES BY {normalization_type}: (first {sample_count} apartments)")
     for i in range(sample_count):
         print(f"{rows[i]}: {np.round(normalized_data[i], 4)}")
@@ -449,14 +452,17 @@ def main():
     
     print_newline()
 
-    print_separator()
-    print_normalized_profiles(rows, "MIN-MAX NORMALIZATION", min_max_normalized_data, sample_count=3)
-    print_separator()
-    
-    print_newline()
+    try:
+        print_separator()
+        print_normalized_profiles(rows, "MIN-MAX NORMALIZATION", min_max_normalized_data, sample_count=3)
+        print_separator()
+        
+        print_newline()
 
-    print_separator()
-    print_normalized_profiles(rows, "Z-SCORE NORMALIZATION", z_score_normalized_data, sample_count=3)
-    print_separator()
+        print_separator()
+        print_normalized_profiles(rows, "Z-SCORE NORMALIZATION", z_score_normalized_data, sample_count=3)
+        print_separator()
+    except ValueError as e:
+        print(f"Error while printing normalized profiles: {e}")
     
 main()
