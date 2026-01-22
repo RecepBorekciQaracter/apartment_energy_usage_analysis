@@ -128,6 +128,32 @@ def compute_peak_contribution_distribution(columns, apartment_data, peak_flags):
 
     return peak_analysis
 
+# C. Compute consumption stability metrics 
+# GOAL 3: Compare apartments in terms of consumption stability, identifying which ones show regular usage patterns and which ones are highly irregular.
+
+def compute_apartment_variance(apartment_data):
+    apartment_variance = np.var(apartment_data, axis=1)
+
+    return apartment_variance
+
+def compute_apartment_std(apartment_data):
+    apartment_std = np.std(apartment_data, axis=1)
+
+    return apartment_std
+
+def compute_apartment_coefficient_of_variation(apartment_avg, apartment_std):
+    if np.any(apartment_avg==0):
+        raise ValueError("Can not divide by zero.") 
+
+    apartment_cv = apartment_std / apartment_avg
+
+    return apartment_cv
+
+def compute_stability_scores(apartment_cv):
+    stability_scores = 1 / (1 + apartment_cv)
+
+    return stability_scores
+
 # ========================
 # 3. REPORTING / PRESENTATION SECTION
 # ========================
@@ -222,6 +248,50 @@ def print_peak_contribution_distribution(peak_analysis, columns=None):
 
     print("-" * 40)
 
+# D. Compute consumption stability metrics 
+def print_apartment_variance(rows, apartment_var):
+    print("VARIANCE BY APARTMENT: ")
+    for i in range(len(rows)):
+        print(f"{rows[i]}: {round(apartment_var[i], 4)}")
+
+def print_apartment_std(rows, apartment_std):
+    print("STANDARD DEVIATION BY APARTMENT: ")
+    for i in range(len(rows)):
+        print(f"{rows[i]}: {round(apartment_std[i], 4)}")
+
+def print_apartment_coefficient_of_variation(rows, apartment_cv):
+    print("COEFFICIENT OF VARIATION BY APARTMENT: ")
+    for i in range(len(rows)):
+        print(f"{rows[i]}: {round(apartment_cv[i], 4)}")
+
+def print_stability_scores(rows, apartment_stability_scores):
+    print("STABILITY SCORES BY APARTMENT: ")
+    for i in range(len(rows)):
+        print(f"{rows[i]}: {round(apartment_stability_scores[i], 4)}")
+
+def print_most_stable_and_irregular_apartments(rows, stability_scores, top_n=3):
+    print("MOST STABLE AND UNSTABLE APARTMENTS: ")
+    
+    sorted_indices = np.argsort(stability_scores)
+
+    stable_indices = sorted_indices[-top_n:][::-1] # Maximum, in reverse
+    unstable_indices = sorted_indices[:top_n] # Minimum
+
+    print("-" * 40)
+
+    print(f"Most stable {top_n} apartments and their stability scores: ")
+    for i in stable_indices:
+        print(f"{rows[i]}: {round(stability_scores[i], 4)}")
+
+    print("-" * 40)
+
+    print(f"Most unstable {top_n} apartments and their stability scores: ")
+    
+    for i in unstable_indices:
+        print(f"{rows[i]}: {round(stability_scores[i], 4)}")
+
+    print("-" * 40)
+
 # ========================
 # 4. MAIN FUNCTION
 # ========================
@@ -237,6 +307,14 @@ def main():
     time_interval_max = compute_time_interval_maxima(apartment_data)
     time_threshold, peak_time_intervals = compute_peak_time_intervals(time_interval_avg, 0.8)
     peak_contribution_distribution = compute_peak_contribution_distribution(columns, apartment_data, peak_time_intervals)
+
+    apartment_var = compute_apartment_variance(apartment_data)
+    apartment_std = compute_apartment_std(apartment_data)
+    try:
+        apartment_cv = compute_apartment_coefficient_of_variation(apartment_avg, apartment_std)
+    except ValueError as e:
+        print(e)
+    apartment_stability_score = compute_stability_scores(apartment_cv)
 
     print_separator()
     print_apartment_data(rows, columns, apartment_data)
@@ -290,4 +368,34 @@ def main():
     print_peak_contribution_distribution(peak_contribution_distribution, columns)
     print_separator()
 
+    print_newline()
+
+    print_separator()
+    print_apartment_variance(rows, apartment_var)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_apartment_std(rows, apartment_std)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_apartment_coefficient_of_variation(rows, apartment_cv)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_stability_scores(rows, apartment_stability_score)
+    print_separator()
+
+    print_newline()
+
+    print_separator()
+    print_most_stable_and_irregular_apartments(rows, apartment_stability_score, top_n = 4)
+    print_separator()
+    
 main()
